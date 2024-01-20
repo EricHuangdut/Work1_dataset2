@@ -6,12 +6,12 @@ from openpyxl import Workbook
 import numpy as np
 from tqdm import tqdm  # 进度条设置
 import matplotlib.pyplot as plt
-from collections import Counter
 import matplotlib as mpl
 import matplotlib
 import math
 import copy
 import operator
+
 import csv
 import pandas as pd
 
@@ -68,6 +68,7 @@ class GaMultiobjective(object):
         self.pos = [[]]  # 存放目标的初始位置
         self.gain = [[]]  # 存放目标的价值评分
         self.threat = []  # 存放目标的威胁程度
+        self.ex = [1,3,6,11,15,17,25,30,33]
         # self.parent = np.random.randint(0, 2, (self.NP, self.N, self.L))  # 随机获得二进制 初始种群f.shape (50,1, 20) .1表示有1个变量
 
     # 计算两点间距离
@@ -201,7 +202,6 @@ class GaMultiobjective(object):
             pos[54, 0] = 371.57
             pos[54, 1] = 148.23
 
-
         return pos
 
     def getmap(self, pos):
@@ -259,7 +259,6 @@ class GaMultiobjective(object):
             threat_radius[36] = 26.24
             threat_radius[37] = 26.64
             threat_radius[38] = 25.88
-            threat_radius[39] = 22.44
 
         return threat_radius
 
@@ -410,7 +409,7 @@ class GaMultiobjective(object):
         temp2 = [[0 for i in range(0, 2)] for i in range(0, 2 * self.num_target - len)]  # 2维，存放排序后的allo方案
         temp2 = sorted(temp1, key=operator.itemgetter(0))  # 检索结束后再重新排一次
         temp2 = np.array(temp2)
-
+        #    print("sorted =", temp2)
 
         return temp2
 
@@ -451,7 +450,7 @@ class GaMultiobjective(object):
 
         # 排除掉不需要干扰的目标
         # 这里这个数据集要改的
-        ex = [3, 7, 13, 23, 31, 35,51,61,67]  # 属于目标2，4，7，12，16，18,26,31,34 // 1,3,6,11,15,17,25,30,33
+        ex = self.ex  # 属于目标2，4，7，12，16，18 // 1,3,6,11,15,17
         #    ex = [3, 7, 13, 21, 27]  # 属于目标2，4，7，11，14 // 1,3,6,10,13
         task = [0 for i in range(0, 2 * self.num_target - len(ex))]
         task = np.array(task)
@@ -645,7 +644,7 @@ class GaMultiobjective(object):
             seq[i, 1] = seq[i, 1] // 2
         # 这里调用提取子map的函数
 
-        #print("seq0 =",seq)
+        #    print("seq0 =",seq)
         n = 0
         for i in range(self.num_uav):
             for j in range(len(seq)):
@@ -911,6 +910,7 @@ class GaMultiobjective(object):
         # 快速非支配排序
 
     def fast_non_dominated_sort(self, values):
+
         values11 = values[0]  # 函数1解集
         S = [[] for i in range(0, len(values11))]  # 存放 每个个体支配解的集合。
         front = [[]]  # 存放群体的级别集合，一个级别对应一个[]
@@ -973,7 +973,6 @@ class GaMultiobjective(object):
     def crowding_distance(self, values, front, popsize):
         #   print("front = ",front)
         distance = np.zeros(shape=(popsize,))  # 拥挤距离初始化为0
-
         for rank in front:  # 遍历每一层Pareto 解 rank为当前等级
             # print("rank ",rank)
             for i in range(len(values)):  # 遍历每一层函数值（先遍历群体函数值1，再遍历群体函数值2...）,
@@ -1007,33 +1006,12 @@ class GaMultiobjective(object):
         for j in range(len(front)):  # 遍历每一层Pareto 解 rank为当前等级
             for i in range(len(front[j])):  # 遍历给rank 等级中每个解的序号
                 distanceA[j].append(distance[front[j][i]])
-        # *0.25 的含义为超过1/4，向上取整，+4即最多存在4个Pareto前沿两侧的个体
-        # 这里等于是边界值判断，不到这个边界值，前沿中不可能存在超过1/4种群规模的重复元素
-
-        fnt_distance = distanceA[0]
-
-        fnt_distance = np.array(fnt_distance)
-
-        if (len(fnt_distance) >= self.NP * 0.25 + 4):
-            dic = Counter(distanceA[0])
-            distance_dic = dict(dic)
-            distance_list = list(distance_dic.keys())
-            distance_same_val = list(distance_dic.values())
-            for i in range(len(distance_same_val)):
-                current_count = 0
-                if (distance_same_val[i] >= self.NP / 4):
-                    for j in range(len(fnt_distance)):
-                        if (fnt_distance[j] == distance_list[i]):
-                            current_count += 1
-                            if (current_count >= self.NP / 4):
-                                fnt_distance[j] = 0
-        distanceA[0] = fnt_distance
-
+        #  print(distanceA)
         return distanceA
 
         # =============多目标优化：精英选择================
 
-    def elitism(self, front, distance, solution):
+    def elitism(self, front, distance, solution,flag):
         #   输入格式和内容没有问题
         #   print("front =",front)
         #   print("distance =",distance)
@@ -1042,7 +1020,10 @@ class GaMultiobjective(object):
         # 思路是直接用编号来筛选解
 
         X1index = []  # 存储群体编号
-        pop_size = len(solution) / 2  # 保留的群体个数 即（父辈+子辈)//2
+        if(flag == 0):
+            pop_size = len(solution) / 2  # 保留的群体个数 即（父辈+子辈)//2
+        if(flag == 1):
+            pop_size = len(solution)
         # pop_size = self.NP
 
         for i in range(len(front)):  # 遍历各层,len(front)的值是pareto层数
@@ -1073,43 +1054,27 @@ class GaMultiobjective(object):
         # print(solution[0])
         return X1
 
-    def IGD(self, front, minf1, minf2):
 
-        datapoint = self.setdata()
-        datapoint = np.array(datapoint)
-        front = np.array(front)
-        min_dis = 100
-        distance = [0.0 for i in range(0, len(front))]
-        distance = np.array(distance)
-        for i in range(0, len(front)):
-            for j in range(0, len(datapoint)):
-                dist = self.dis(datapoint[j, 0], front[i, 0], datapoint[j, 1], front[i, 1])
-                if (dist < min_dis):
-                    min_dis = dist
-                    distance[i] = dist
-            min_dis = 100
 
-        igd = 0
-        for i in range(0, len(front)):
-            igd = igd + distance[i]
-
-        igd = igd / len(front)
-        return igd
+    # 参考点为（30，12）
+    # 计算Hypervolume，把front从小到大排
 
     def HV(self, front, num):
         # 这里需要排序
 
-        front = sorted(front, key=lambda x: x[0])
+
+        front = sorted(front,key=lambda x:x[0])
         front = np.array(front)
 
-        # 选的点为（30，12）
+
+
         hv = 0.0
         volume = 0.0
         for i in range(0, num):
             if (i == 0):
-                volume = (30 - front[i, 0]) * (18 - front[i, 1])
+                volume = (30-front[i,0])  * (18-front[i,1])
             if (i > 0):
-                volume = (30 - front[i, 0]) * (front[i - 1, 1] - front[i, 1])
+                volume = (30-front[i,0])  * (front[i-1,1] - front[i,1])
 
             hv = hv + volume
 
@@ -1186,9 +1151,12 @@ class GaMultiobjective(object):
         parent = np.array(parent)
         parentchild10 = np.zeros((2 * self.NP, self.num_target + self.singletasktarget, 2))
         parentchild10 = np.array(parentchild10)
+        p10 = np.zeros((self.NP, self.num_target + self.singletasktarget, 2))
+        p10 = np.array(p10)
+        p100 = np.zeros((self.NP, self.num_target + self.singletasktarget, 2))
+        p100 = np.array(p100)
         parenttwo = np.random.randint(0, 2, (self.NP, self.Len))  # 随机获得二进制 初始种群f.shape (50,1, 20) .1表示有1个变量
-
-        #    parenttwo = self.pre(threat, map)
+        #parenttwo = self.pre(threat, map)
         min_f1 = 100
         min_f2 = 100
         #    print(parenttwo)
@@ -1199,40 +1167,37 @@ class GaMultiobjective(object):
         #    for i in range(self.NP):
         #        parent[i] = self.decode(parenttwo[i])
         #    parent = np.asarray(parent,dtype=int)
-        f1_values = [0.0 for i in range(2 * self.max_gen)]
+        f1_values = [0.0 for i in range(self.max_gen)]
         f1_values = np.array(f1_values)
-        f2_values = [0.0 for i in range(2 * self.max_gen)]
+        f2_values = [0.0 for i in range(self.max_gen)]
         f2_values = np.array(f2_values)
 
-        HV = [0.0 for i in range(2 * self.max_gen)]
+        HV = [0.0 for i in range(self.max_gen)]
         HV = np.array(HV)
-        f1_min = [0.0 for i in range(2 * self.max_gen)]
+        f1_min = [0.0 for i in range(self.max_gen)]
         f1_min = np.array(f1_min)
         parent = np.array(parent)
+        pbest_val = [[9999.0,9999.0]for i in range(self.NP)]
+        pbest_val = np.array(pbest_val) #每个个体的最优
+        gbest_val = [9999.0,9999.0] #种群最优个体
+        pbest = []
+        gbest = []
 
         hv = 0.0
         gen = 0
-        # plt.ion()
+        #plt.ion()
         p_choice = np.zeros(self.NP)
         p_choice = np.array(p_choice)
         p_choice = self.parent_choice(0, 2, self.NP)
         p_pos = np.zeros(self.NP)
         p_pos = np.array(p_pos)
-        pm = self.Pm
-        pc = self.Pc
-        cnt = 0
-        pm_trigger = 0
-        pc_trigger = 0
-        last_front = []
         for i in range(self.NP):
             p_pos[i] = i
-        max_gen = self.max_gen
 
-        for j in tqdm(range(max_gen)):
-        #while (gen < max_gen):
-            plt.clf()
-            if (pm_trigger == 0):
-                pm = self.Pm + (self.max_Pm - self.Pm) * (gen / self.max_gen)
+        for j in tqdm(range(self.max_gen)):
+            #   第1代
+
+
 
             #    print("第 ",gen," 代交叉前个体 =",parenttwo[0])
 
@@ -1243,125 +1208,204 @@ class GaMultiobjective(object):
 
             pr2 = copy.copy(parenttwo)  # 交叉前的种群
             child = copy.copy(parenttwo)  # 交叉前的种群
-            #    print("parent 2 first before nsga=", parenttwo[0])
+        #    print("parent 2 first before nsga=", parenttwo[0])
 
             #    print("第 ", gen, " 代交叉前pr2 =", pr2[0])
-            for i in range(0, self.NP, 2):
-                if (pc_trigger == 0):
+            if(gen == 0):
+                for i in range(0, self.NP, 2):
+
                     father1 = i  # 随机选择一个（0-NP）之间的整数
-                    father2 = i + 1  # 随机选择一个（0-NP）之间的整数
-                # 种群内个体集中已经达到一定数值
-                if (pc_trigger == 1):
-                    father1 = random.randint(0, self.NP - 1)
-                    father2 = random.randint(0, self.NP - 1)
-                    # 重新选择第2个个体来进行交叉变异过程
-                    while (np.array_equal(pr2[father1], pr2[father2])):
-                        father2 = random.randint(0, self.NP - 1)
+                    father2 = i+1 # 随机选择一个（0-NP）之间的整数
 
-                p1 = np.random.random()
-                p2 = np.random.random()
-                if (p1 < pc):
-                    child[i], child[i + 1] = self.crossover(pr2[father1], pr2[father2])
-                if (p2 > 1 - pm):
-                    child[i] = self.Mutation(pr2[father1], 0.1)
-                    child[i + 1] = self.Mutation(pr2[father2], 0.1)
 
-            #    X1 = self.Crossover(parenttwo, self.Pc)  # 交叉操作 X1为交叉后群体
-            #    print("第 ", gen, " 代x1操作后个体 =", X1[0])
-            #    print("第 ", gen, "代x1后parent =", parenttwo[0])
-            #    X2 = self.mutation(X1, self.Pm)  # 变异 变异后为子代群体
-            # 检查一下交叉后个体是否丢失
-            #    print("第 ",gen,"代交叉后个体 =", parenttwo[0])
-            #    print("第 ", gen, " 代交叉后pr2 =", pr2[0])
-            #    print("第 ", gen, "代交叉变异后个体 =", X2[0])
-            parentchild2 = np.concatenate([child, parenttwo], axis=0)  # 合并父子代
-            #    print((len(parentchild2)))
-            #    print(parentchild2[99])
-            #    parentchild2 = np.concatenate([parenttwo, X2], axis=0) #合并父子代
-            #    print("第 ", gen, "代合并后个体0 =", parentchild2[0])
-            #    print("第 ", gen, "代合并后子代个体0 =", parentchild2[0+self.NP])
 
-            for i in range(len(parentchild2)):
-                parentchild10[i] = self.decode(parentchild2[i])
-            parentchild10 = np.asarray(parentchild10, dtype=int)
+                    p = np.random.random()
+                    if (p < self.Pc):
+                        child[i], child[i + 1] = self.crossover(pr2[father1], pr2[father2])
+                    if (p > self.Pc):
+                        child[i] = self.Mutation(pr2[father1], self.Pm)
+                        child[i + 1] = self.Mutation(pr2[father2], self.Pm)
+
+
+
+
+
+                parentchild2 = np.concatenate([child, parenttwo], axis=0)  # 合并父子代
+
+
+                for i in range(len(parentchild2)):
+                    parentchild10[i] = self.decode(parentchild2[i])
+                parentchild10 = np.asarray(parentchild10, dtype=int)
             #    print(parentchild10[99])
 
-            values1 = np.zeros(shape=len(parentchild10), )
-            for i in range(len(parentchild10)):  # 遍历每一个个体
-                values1[i] = self.f1(parentchild10[i], threat, map, 1)
+                values1 = np.zeros(shape=len(parentchild10), )
+                for i in range(len(parentchild10)):  # 遍历每一个个体
+                    values1[i] = self.f1(parentchild10[i], threat, map,1)
 
-            if (min(values1) < min_f1):
-                min_f1 = min(values1)
 
-            #    valuescost = np.zeros(shape=len(parentchild10), )
-            #    for i in range(len(parentchild10)):  # 遍历每一个个体
-            #         valuescost[i] = self.f2(parentchild10[i],threat,map)
+                values2 = np.zeros(shape=len(parentchild10), )
+                for i in range(len(parentchild10)):  # 遍历每一个个体
+                    # values2[i] = self.f2(parentchild10[i],threat,map)
+                    values2[i] = self.f3(parentchild10[i])
 
-            values2 = np.zeros(shape=len(parentchild10), )
-            for i in range(len(parentchild10)):  # 遍历每一个个体
-                # values2[i] = self.f2(parentchild10[i],threat,map)
-                values2[i] = self.f3(parentchild10[i])
+                values = [values1, values2]
+                values = np.array(values)
 
-            if (min(values2) < min_f2):
-                min_f2 = min(values2)
+                front = self.fast_non_dominated_sort(values)
 
-            f1_values[gen] = np.mean(values1)
-            f2_values[gen] = np.mean(values2)
-            f1_min[gen] = np.min(values1)
+                ans = front[0]
+                front_0 = np.unique(front[0])
 
-            values = [values1, values2]
-            values = np.array(values)
+                sol = []
+                for i in range(len(front_0)):
+                    v1 = values[0, front_0[i]]
+                    v2 = values[1, front_0[i]]
+                    sol.append([v1, v2])
 
-            front = self.fast_non_dominated_sort(values)
-            ans = front[0]
+                HV[gen] = self.HV(sol, len(sol))
 
-            if ((len(ans) / self.NP) >= 0.9357):
-                pc_trigger = 1
-            if ((len(ans) / self.NP) < 0.9357):
-                pc_trigger = 0
+                distanceA = self.crowding_distance(values, front, 2 * self.NP)
+                #    print("distanceA =",distanceA)
+                # 目前的逻辑截止到这里都正确
 
-            front_0 = np.unique(front[0])
+                X3 = self.elitism(front, distanceA, parentchild2,0)
 
-            sol = []
-            for i in range(len(front_0)):
-                v1 = values[0, front_0[i]]
-                v2 = values[1, front_0[i]]
-                sol.append([v1, v2])
+                parenttwo = np.array(X3)
+                parenttwo = parenttwo.reshape(self.NP, self.Len)
 
-            front_0_sol = np.array(sol)
-            front_0_val = np.unique(front_0_sol, axis=0)
-            front_0_sorted = sorted(front_0_val, key=lambda x: (x[1], x[0]), reverse=True)
-            front_0_sorted = np.array(front_0_sorted)
-            if (gen == 0):
-                last_front = front_0_sorted
-                last_front = np.array(last_front)
-            if (gen >= 1):
-                if (np.array_equal(front_0_sorted, last_front) == True):
-                    cnt += 1
+                pbest = parenttwo
+                gbest = parenttwo[0]
 
-                if (np.array_equal(front_0_sorted, last_front) == False):
-                    cnt = 0
-                    pm = self.Pm + (self.max_Pm - self.Pm) * (gen / self.max_gen)
-                    last_front = front_0_sorted
-                    last_front = np.array(last_front)
-                    pm_trigger = 0
-            if (cnt >= 5):
-                pm = self.Pm + (self.max_Pm - self.Pm) * (gen / self.max_gen) + 0.1
-                if (pm >= self.max_Pm):
-                    pm = self.max_Pm
-                pm_trigger = 1
+                for i in range(len(pbest)):
+                    p10[i] = self.decode(pbest[i])
+                p10 = np.asarray(p10, dtype=int)
 
-            HV[gen] = self.HV(sol, len(sol))
 
-            distanceA = self.crowding_distance(values, front, 2 * self.NP)
+
+                for i in range(len(p10)):  # 遍历每一个个体
+                    pbest_val[i,0] = self.f1(p10[i], threat, map, 1)
+
+
+                for i in range(len(p10)):  # 遍历每一个个体
+                    pbest_val[i,1] = self.f3(p10[i])
+
+                gbest_val[0] = pbest_val[0,0]
+                gbest_val[1] = pbest_val[0,1]
+
+
+
+
+                # 记录pbest的值
+
+
+
+
+            if (gen > 0):
+                #这里直接交叉变异操作
+            #    print("gen ",gen,"before p155 =", parenttwo[154])
+            #    print("pbest ",pbest_val)
+                pr2 = copy.copy(parenttwo)
+                for i in range(self.NP):
+                    parenttwo[i],parenttwo[i] = self.crossover(parenttwo[i],gbest)
+
+                    parenttwo[i] = self.Mutation(parenttwo[i],self.Pm)
+
+                for i in range(len(parenttwo)):
+                    p10[i] = self.decode(parenttwo[i])
+                p10 = np.asarray(p10, dtype=int)
+
+                for i in range(len(pr2)):
+                    p100[i] = self.decode(pr2[i])
+                p100 = np.asarray(p100, dtype=int)
+
+
+                values1 = np.zeros(shape=len(p10), )
+                values11 = np.zeros(shape=len(p100), )
+                for i in range(len(p10)):  # 遍历每一个个体
+                    values1[i] = self.f1(p10[i], threat, map, 1)
+                    values11[i] = self.f1(p100[i], threat, map, 1)
+
+                values2 = np.zeros(shape=len(p10), )
+                values22 = np.zeros(shape=len(p100), )
+                for i in range(len(p10)):  # 遍历每一个个体
+                    values2[i] = self.f3(p10[i])
+                    values22[i] = self.f3(p100[i])
+
+                values = [values1, values2]
+                values1x = [values11,values22]
+                values = np.array(values)
+                values1x = np.array(values1x)
+            #    print("pval 155", pbest_val[154, 0], " v f1", values[0, 154], " pval 155 ", pbest_val[154, 1], " v f2",
+             #             values[1, 154])
+                for i in range(self.NP):
+                    if((values[0,i] < pbest_val[i,0]) and (values[1,i] < pbest_val[i,1])):
+                    #    print("pval f1", pbest_val[i, 0], " v f1", values[0, i], " pval f2 ", pbest_val[i, 1], " v f2",
+                    #          values[1, i])
+                        pbest_val[i,0] = values[0,i]
+                        pbest_val[i,1] = values[1,i]
+                        pbest[i] = parenttwo[i]
+                    #    print(i," advanced")
+                    else:
+                        parenttwo[i] = pr2[i]
+                        values[0,i] = values1x[0,i]
+                        values[1,i] = values1x[1,i]
+                #        print(i, " not advanced")
+                #        print("pval f1", pbest_val[i, 0], " v f1", values[0, i])
+
+
+            #    print("gen ", gen, "med p155 =", parenttwo[154])
+
+
+
+
+                front = self.fast_non_dominated_sort(values)
+            #    print("front =", front)
+                ans = front[0]
+            #    print("ans =",ans)
+
+                front_0 = np.unique(front[0])
+
+
+
+                sol = []
+                for i in range(len(front_0)):
+                    v1 = values[0,front_0[i]]
+                    v2 = values[1,front_0[i]]
+                    sol.append([v1,v2])
+            #    print(sol)
+
+                HV[gen] = self.HV(sol, len(sol))
+                print("HV = ",gen,HV)
+
+
+            #    distanceA = self.crowding_distance(values, front,2 * self.NP)
             #    print("distanceA =",distanceA)
             # 目前的逻辑截止到这里都正确
 
-            X3 = self.elitism(front, distanceA, parentchild2)
+            #    X3 = self.elitism(front, distanceA, parenttwo,1)
+            #    print("X3 =",X3)
 
-            parenttwo = np.array(X3)
-            parenttwo = parenttwo.reshape(self.NP, self.Len)
+            #    parenttwo = np.array(X3)
+                parenttwo = parenttwo.reshape(self.NP, self.Len)
 
+            #更新gbest
+
+                dec = self.decode(parenttwo[0])
+                p_f1 = self.f1(dec,threat,map,1)
+                p_f2 = self.f3(dec)
+            #    print("pf1 pf2=",p_f1,p_f2)
+                if ((p_f1 < gbest_val[0]) and (p_f2 < gbest_val[1])):
+                    gbest_val[0] = p_f1
+                    gbest_val[1] = p_f2
+                    gbest = parenttwo[0]
+
+            #    print("gen ", gen, "end p155 =", parenttwo[154])
+
+
+
+
+
+            """
             # 画图并动态更新
             resultf1 = [0.00 for i in range(0, len(front[0]))]
             resultf1 = np.array(resultf1)
@@ -1375,6 +1419,7 @@ class GaMultiobjective(object):
 
             val = [resultf1, resultf2]
 
+            """
             """
         #    print(gen + 1, " ", hv)
         #    print("gen #",gen," 's value =",val)
@@ -1402,11 +1447,6 @@ class GaMultiobjective(object):
             """
 
             gen = gen + 1
-            if ((gen == max_gen) and len(ans) < self.NP):
-                max_gen += 1
-
-            print("iter =", gen)
-            print("maxgen =", max_gen)
 
         # 循环结束
         # 其实到这里最后一代已经是排好序的了
@@ -1415,9 +1455,10 @@ class GaMultiobjective(object):
             parent[i] = self.decode(parenttwo[i])
         parent = np.asarray(parent, dtype=int)
 
-        # 解码后计算适应值
+        print(len(parent))
 
         values1 = np.zeros(shape=len(parent), )
+        # 解码后计算适应值
         ordtotal = []
         for i in range(len(parent)):  # 遍历每一个个体
             values1[i] = self.f1(parent[i], threat, map, 1)
@@ -1434,10 +1475,11 @@ class GaMultiobjective(object):
                     ordtotal = np.concatenate((ordtemp, ord), axis=0)
 
         out = pd.DataFrame(ordtotal)
-        writer = pd.ExcelWriter('NSGA-II 900iter dataset 2 solution 15.xlsx')
+        writer = pd.ExcelWriter('pso solution 15.xlsx')
         out.to_excel(writer, sheet_name='example1', float_format='%.4f')
         writer._save()
         writer.close()
+
         values2 = np.zeros(shape=len(parent), )
         for i in range(len(parent)):  # 遍历每一个个体
             #    values2[i] = self.f2(parent[i], threat, map)
@@ -1445,8 +1487,12 @@ class GaMultiobjective(object):
 
         values = [values1, values2]
         #    print(values)
+        print(len(values[0]))
+        print(len(values[1]))
         front = self.fast_non_dominated_sort(values)
         ans = front[0]
+
+
 
         """
         #paretovalues = [paretovalues1,paretovalues2]
@@ -1474,17 +1520,18 @@ class GaMultiobjective(object):
             resultf2[i] = values2[ans[i]]
         val = [resultf1, resultf2]
 
+
         # 输出结果导入excel
 
         Ans = []
+        Ans.append(HV)        #HV指标
+        Ans.append(resultf1)  #f1值
+        Ans.append(resultf2)  #f2值
+        Ans.append(f1_min)    #f1最小值
 
-        Ans.append(HV)  # HV指标
-        Ans.append(resultf1)  # f1值
-        Ans.append(resultf2)  # f2值
-        Ans.append(f1_min)  # f1最小值
 
         output = pd.DataFrame(Ans)
-        writer = pd.ExcelWriter('NSGA-II 900iter dataset 2 15.xlsx')
+        writer = pd.ExcelWriter('pso 15.xlsx')
         output.to_excel(writer, sheet_name='example2', float_format='%.4f')
         writer._save()
         writer.close()
